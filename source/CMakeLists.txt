@@ -27,6 +27,10 @@ if (CMAKE_C_COMPILER_ID MATCHES "MSVC")
 else()
     # Flags common for GCC and Clang
 
+    # Always use -O2 for wasm3 to enable tail-call optimization.
+    # The threaded-code interpreter relies on tail calls to avoid stack overflow.
+    # GCC doesn't support __attribute__((musttail)), so we need the optimizer.
+    target_compile_options(m3 PRIVATE -O2)
 
     # FIXME: comparison of integers of different signs: 'u32' and 'i32'
     set_source_files_properties(m3_env.c PROPERTIES COMPILE_FLAGS -Wno-sign-compare)

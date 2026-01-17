@@ -182,6 +182,7 @@ IM3Runtime  m3_NewRuntime  (IM3Environment i_environment, u32 i_stackSizeInBytes
         runtime->userdata = i_userdata;
 
         runtime->originStack = m3_Malloc ("Wasm Stack", i_stackSizeInBytes + 4*sizeof (m3slot_t)); // TODO: more precise stack checks
+        runtime->stackIsExternal = false;
 
         if (runtime->originStack)
         {
@@ -192,6 +193,56 @@ IM3Runtime  m3_NewRuntime  (IM3Environment i_environment, u32 i_stackSizeInBytes
     }
 
     return runtime;
+}
+
+IM3Runtime  m3_NewRuntimeWithStack  (IM3Environment i_environment, u32 i_stackSizeInBytes, void * i_stack, void * i_userdata)
+{
+    if (!i_stack) {
+        return NULL;
+    }
+
+    IM3Runtime runtime = m3_AllocStruct (M3Runtime);
+
+    if (runtime)
+    {
+        m3_ResetErrorInfo(runtime);
+
+        runtime->environment = i_environment;
+        runtime->userdata = i_userdata;
+
+        runtime->originStack = i_stack;
+        runtime->stackIsExternal = true;
+        runtime->stack = runtime->originStack;
+        runtime->numStackSlots = i_stackSizeInBytes / sizeof (m3slot_t);
+        m3log (runtime, "new runtime with external stack: %p", runtime->originStack);
+    }
+
+    return runtime;
+}
+
+M3Result  m3_RuntimeSetMemory  (IM3Runtime io_runtime, void * i_memory, u32 i_memoryBytes)
+{
+    if (!io_runtime || !i_memory || i_memoryBytes < sizeof(M3MemoryHeader)) {
+        return m3Err_mallocFailed;
+    }
+
+    // Memory should not already be allocated
+    if (io_runtime->memory.mallocated) {
+        return m3Err_moduleAlreadyLinked;  // Using existing error for "already set"
+    }
+
+    M3MemoryHeader* header = (M3MemoryHeader*)i_memory;
+    header->runtime = io_runtime;
+    header->length = i_memoryBytes - sizeof(M3MemoryHeader);
+    header->maxStack = (m3slot_t *) io_runtime->stack + io_runtime->numStackSlots;
+
+    io_runtime->memory.mallocated = header;
+    io_runtime->memory.isExternal = true;
+    io_runtime->memory.numPages = 0;  // Will be set when module is loaded
+
+    m3log (runtime, "set external memory: %p, size: %u", i_memory, i_memoryBytes);
+
+    return m3Err_none;
 }
 
 void *  m3_GetUserData  (IM3Runtime i_runtime)
@@ -234,8 +285,12 @@ void  Runtime_Release  (IM3Runtime i_runtime)
     Environment_ReleaseCodePages (i_runtime->environment, i_runtime->pagesOpen);
     Environment_ReleaseCodePages (i_runtime->environment, i_runtime->pagesFull);
 
-    m3_Free (i_runtime->originStack);
-    m3_Free (i_runtime->memory.mallocated);
+    if (!i_runtime->stackIsExternal) {
+        m3_Free (i_runtime->originStack);
+    }
+    if (!i_runtime->memory.isExternal) {
+        m3_Free (i_runtime->memory.mallocated);
+    }
 }
 
 
@@ -357,6 +412,27 @@ M3Result  ResizeMemory  (IM3Runtime io_runtime, u32 i_numPages)
     u32 numPagesToAlloc = i_numPages;
 
     M3Memory * memory = & io_runtime->memory;
+
+    // If memory is external, we can't reallocate - just update metadata if within bounds
+    if (memory->isExternal)
+    {
+        if (memory->mallocated)
+        {
+            size_t requestedBytes = i_numPages * io_runtime->memory.pageSize;
+            if (requestedBytes <= memory->mallocated->length)
+            {
+                memory->numPages = i_numPages;
+                memory->mallocated->maxStack = (m3slot_t *) io_runtime->stack + io_runtime->numStackSlots;
+                m3log (runtime, "external memory: updated pages to %d", memory->numPages);
+                return result;
+            }
+            else
+            {
+                return m3Err_wasmMemoryOverflow;  // Can't grow external memory
+            }
+        }
+        return m3Err_mallocFailed;  // External memory not set
+    }
 
 #if 0 // Temporary fix for memory allocation
     if (memory->mallocated) {
@@ -848,9 +924,16 @@ M3ValueType  m3_GetRetType  (IM3Function i_function, uint32_t index)
 
 u8 *  GetStackPointerForArgs  (IM3Function i_function)
 {
-    u64 * stack = (u64 *) i_function->module->runtime->stack;
-    IM3FuncType ftype = i_function->funcType;
+    IM3Runtime runtime = i_function->module->runtime;
+    u64 * stack;
 
+    if (runtime->activeStackPointer) {
+        stack = (u64 *) runtime->activeStackPointer;
+    } else {
+        stack = (u64 *) runtime->stack;
+    }
+
+    IM3FuncType ftype = i_function->funcType;
     stack += ftype->numRets;
 
     return (u8 *) stack;
@@ -910,10 +993,12 @@ _   (checkStartFunction(i_function->module))
         }
     }
 
+    m3stack_t callStack = runtime->activeStackPointer ? (m3stack_t)runtime->activeStackPointer : (m3stack_t)runtime->stack;
+
 # if (d_m3EnableOpProfiling || d_m3EnableOpTracing)
-    result = (M3Result) RunCode (i_function->compiled, (m3stack_t)(runtime->stack), runtime->memory.mallocated, d_m3OpDefaultArgs, d_m3BaseCstr);
+    result = (M3Result) RunCode (i_function->compiled, callStack, runtime->memory.mallocated, d_m3OpDefaultArgs, d_m3BaseCstr);
 # else
-    result = (M3Result) RunCode (i_function->compiled, (m3stack_t)(runtime->stack), runtime->memory.mallocated, d_m3OpDefaultArgs);
+    result = (M3Result) RunCode (i_function->compiled, callStack, runtime->memory.mallocated, d_m3OpDefaultArgs);
 # endif
     ReportNativeStackUsage ();
 

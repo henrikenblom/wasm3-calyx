@@ -33,6 +33,7 @@ typedef struct M3Memory
     u32                     numPages;
     u32                     maxPages;
     u32                     pageSize;
+    bool                    isExternal;     // true if memory was provided externally (don't free/realloc)
 }
 M3Memory;
 
@@ -174,9 +175,11 @@ typedef struct M3Runtime
 
     void *                  stack;
     void *                  originStack;
+    bool                    stackIsExternal;    // true if originStack was provided externally (don't free)
     u32                     stackSize;
     u32                     numStackSlots;
     IM3Function             lastCalled;     // last function that successfully executed
+    void *                  activeStackPointer; // current stack position during execution (for nested calls)
 
     void *                  userdata;
 

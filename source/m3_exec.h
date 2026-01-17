@@ -547,10 +547,14 @@ d_m3Op  (Call)
 
     m3stack_t sp = _sp + stackOffset;
 
+    m3ret_t r = m3_CheckNativeStackOverflow();
+    if (M3_UNLIKELY(r))
+        forwardTrap (r);
+
 # if (d_m3EnableOpProfiling || d_m3EnableOpTracing)
-    m3ret_t r = Call (callPC, sp, _mem, d_m3OpDefaultArgs, d_m3BaseCstr);
+    r = Call (callPC, sp, _mem, d_m3OpDefaultArgs, d_m3BaseCstr);
 # else
-    m3ret_t r = Call (callPC, sp, _mem, d_m3OpDefaultArgs);
+    r = Call (callPC, sp, _mem, d_m3OpDefaultArgs);
 # endif
 
     _mem = memory->mallocated;
@@ -567,6 +571,10 @@ d_m3Op  (Call)
 
 d_m3Op  (CallIndirect)
 {
+    m3ret_t r = m3_CheckNativeStackOverflow();
+    if (M3_UNLIKELY(r))
+        forwardTrap (r);
+
     u32 tableIndex              = slot (u32);
     IM3Module module            = immediate (IM3Module);
     IM3FuncType type            = immediate (IM3FuncType);
@@ -575,7 +583,7 @@ d_m3Op  (CallIndirect)
 
     m3stack_t sp = _sp + stackOffset;
 
-    m3ret_t r = m3Err_none;
+    r = m3Err_none;
 
     if (M3_LIKELY(tableIndex < module->table0Size))
     {
@@ -590,7 +598,6 @@ d_m3Op  (CallIndirect)
 
                 if (M3_LIKELY(not r))
                 {
-
 # if (d_m3EnableOpProfiling || d_m3EnableOpTracing)
                     r = Call (function->compiled, sp, _mem, d_m3OpDefaultArgs, d_m3BaseCstr);
 # else
@@ -623,6 +630,9 @@ d_m3Op  (CallIndirect)
 d_m3Op  (CallRawFunction)
 {
     d_m3TracePrepare
+
+    m3ret_t yield_trap = m3_Yield ();
+    if (M3_UNLIKELY(yield_trap)) return yield_trap;
 
     M3ImportContext ctx;
 
@@ -1216,9 +1226,12 @@ d_m3Op  (ContinueLoop)
 {
     m3StackCheck();
 
-    // TODO: this is where execution can "escape" the M3 code and callback to the client / fiber switch
-    // OR it can go in the Loop operation. I think it's best to do here. adding code to the loop operation
-    // has the potential to increase its native-stack usage. (don't forget ContinueLoopIf too.)
+    m3ret_t r = m3_CheckNativeStackOverflow();
+    if (M3_UNLIKELY(r))
+        forwardTrap (r);
+
+    m3ret_t possible_trap = m3_YieldWithSignals (_mem->runtime);
+    if (M3_UNLIKELY(possible_trap)) return possible_trap;
 
     void * loopId = immediate (void *);
     return loopId;
@@ -1232,6 +1245,13 @@ d_m3Op  (ContinueLoopIf)
 
     if (condition)
     {
+        m3ret_t r = m3_CheckNativeStackOverflow();
+        if (M3_UNLIKELY(r))
+            forwardTrap (r);
+
+        m3ret_t possible_trap = m3_YieldWithSignals (_mem->runtime);
+        if (M3_UNLIKELY(possible_trap)) return possible_trap;
+
         return loopId;
     }
     else nextOp ();
