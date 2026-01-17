@@ -210,6 +210,23 @@ d_m3ErrorConst  (trapStackOverflow,             "[trap] stack overflow")
                                                      uint32_t               i_stackSizeInBytes,
                                                      void *                 i_userdata);
 
+    // Create a runtime with an externally-provided stack buffer.
+    // The stack buffer will NOT be freed when the runtime is destroyed.
+    // Useful for memory constrained systems that want to use static memory for the WASM stack.
+    IM3Runtime          m3_NewRuntimeWithStack      (IM3Environment         io_environment,
+                                                     uint32_t               i_stackSizeInBytes,
+                                                     void *                 i_stack,
+                                                     void *                 i_userdata);
+
+    // Set external linear memory for a runtime.
+    // The memory buffer will NOT be freed or reallocated when the runtime is destroyed.
+    // Must be called BEFORE loading a module. The buffer must include space for M3MemoryHeader.
+    // Useful for memory constrained systems that want to use static/PSRAM memory for WASM linear memory.
+    // i_memoryBytes should be the total buffer size including header overhead.
+    M3Result            m3_RuntimeSetMemory         (IM3Runtime             io_runtime,
+                                                     void *                 i_memory,
+                                                     uint32_t               i_memoryBytes);
+
     void                m3_FreeRuntime              (IM3Runtime             i_runtime);
 
     // Wasm currently only supports one memory region. i_memoryIndex should be zero.
@@ -221,6 +238,25 @@ d_m3ErrorConst  (trapStackOverflow,             "[trap] stack overflow")
     uint32_t            m3_GetMemorySize            (IM3Runtime             i_runtime);
 
     void *              m3_GetUserData              (IM3Runtime             i_runtime);
+
+
+//-------------------------------------------------------------------------------------------------------------------------------
+//  native stack guard
+//-------------------------------------------------------------------------------------------------------------------------------
+
+    // Configure native (C) stack overflow protection.
+    // stackBase is the top of the allocated stack (highest address for downward-growing stacks).
+    // maxStackSize is the maximum allowed stack usage in bytes.
+    // The guard triggers m3Err_trapStackOverflow when the stack pointer goes below (stackBase - maxStackSize).
+    void                m3_SetNativeStackLimit      (size_t                 i_stackBase,
+                                                     size_t                 i_maxStackSize);
+
+    // Reset/disable the native stack guard.
+    void                m3_ResetNativeStackGuard    (void);
+
+    // Check if native stack has overflowed. Called internally by op_Call and op_CallIndirect.
+    // Returns m3Err_trapStackOverflow if overflow detected, m3Err_none otherwise.
+    M3Result            m3_CheckNativeStackOverflow (void);
 
 
 //-------------------------------------------------------------------------------------------------------------------------------
@@ -287,6 +323,7 @@ d_m3ErrorConst  (trapStackOverflow,             "[trap] stack overflow")
 //  functions
 //-------------------------------------------------------------------------------------------------------------------------------
     M3Result            m3_Yield                    (void);
+    M3Result            m3_YieldWithSignals         (IM3Runtime i_runtime);
 
     // o_function is valid during the lifetime of the originating runtime
     M3Result            m3_FindFunction             (IM3Function *          o_function,

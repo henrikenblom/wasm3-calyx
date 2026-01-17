@@ -59,6 +59,7 @@ d_m3BeginExternC
 #    define jumpOpImpl(PC)          ((IM3Operation)(*  PC))( PC + 1, d_m3OpArgs)
 # endif
 
+// Direct dispatch to next op - stack checks are done at Call/CallIndirect/Loop
 #define nextOpDirect()              M3_MUSTTAIL return nextOpImpl()
 #define jumpOpDirect(PC)            M3_MUSTTAIL return jumpOpImpl((pc_t)(PC))
 

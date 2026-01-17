@@ -216,6 +216,26 @@ uint64_t    m3_GetTimestamp         ();
 #define     m3_GetTimestamp()       ""
 #endif
 
+// Native stack guard - prevents native C stack overflow
+void        m3_SetNativeStackLimit  (size_t stackBase, size_t maxStackSize);
+void        m3_ResetNativeStackGuard(void);
+void        m3_ResetStackCheckCounter(void);
+M3Result    m3_CheckNativeStackOverflow(void);
+
+// Exposed for fast inline stack check in interpreter loop
+extern size_t g_nativeStackLimit;
+
+// Fast inline stack check - returns trap if stack exceeded
+// Used by op_Loop to catch overflow in tight loops
+static inline m3ret_t m3_FastStackCheck(void) {
+    if (g_nativeStackLimit == 0) return m3Err_none;
+    volatile char stack;
+    if ((size_t)&stack < g_nativeStackLimit) {
+        return m3Err_trapStackOverflow;
+    }
+    return m3Err_none;
+}
+
 void        m3_Abort                (const char* message);
 void *      m3_Malloc_Impl          (size_t i_size);
 void *      m3_Realloc_Impl         (void * i_ptr, size_t i_newSize, size_t i_oldSize);

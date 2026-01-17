@@ -12,6 +12,8 @@
 #include "m3_core.h"
 #include "m3_env.h"
 
+#include <stdio.h>
+
 void m3_Abort(const char* message) {
 #ifdef DEBUG
     fprintf(stderr, "Error: %s\n", message);
@@ -192,6 +194,58 @@ int      m3StackGetMax  ()
 }
 
 #endif
+
+//--------------------------------------------------------------------------------------------
+// Native stack guard - prevents stack overflow crashes
+//--------------------------------------------------------------------------------------------
+
+static size_t g_nativeStackBase = 0;
+size_t g_nativeStackLimit = 0;  // Non-static for extern access from fast inline check
+static uint32_t g_stackCheckCount = 0;
+static size_t g_lowestSP = (size_t)-1;
+
+// Safety margin: must be large enough that between one check and the next,
+// the C stack cannot grow past the limit and corrupt memory.
+// Each WASM call level can consume 1-2KB of C stack. With deep recursion,
+// many levels can execute before the next check runs.
+// 32KB margin leaves 32KB usable but prevents corruption.
+#define STACK_SAFETY_MARGIN 32768
+
+void m3_SetNativeStackLimit(size_t stackBase, size_t maxStackSize)
+{
+    g_nativeStackBase = stackBase;
+    g_nativeStackLimit = stackBase - maxStackSize + STACK_SAFETY_MARGIN;
+    g_stackCheckCount = 0;
+    g_lowestSP = stackBase;
+}
+
+void m3_ResetNativeStackGuard(void)
+{
+    g_nativeStackBase = 0;
+    g_nativeStackLimit = 0;
+}
+
+void m3_ResetStackCheckCounter(void)
+{
+    g_stackCheckCount = 0;
+    g_lowestSP = g_nativeStackBase;
+}
+
+M3Result m3_CheckNativeStackOverflow(void)
+{
+    if (g_nativeStackLimit == 0) {
+        return m3Err_none;
+    }
+
+    volatile char stack;
+    size_t currentSP = (size_t)&stack;
+
+    if (currentSP < g_nativeStackLimit) {
+        return m3Err_trapStackOverflow;
+    }
+
+    return m3Err_none;
+}
 
 //--------------------------------------------------------------------------------------------
 
