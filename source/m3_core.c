@@ -204,17 +204,10 @@ size_t g_nativeStackLimit = 0;  // Non-static for extern access from fast inline
 static uint32_t g_stackCheckCount = 0;
 static size_t g_lowestSP = (size_t)-1;
 
-// Safety margin: must be large enough that between one check and the next,
-// the C stack cannot grow past the limit and corrupt memory.
-// Each WASM call level can consume 1-2KB of C stack. With deep recursion,
-// many levels can execute before the next check runs.
-// 32KB margin leaves 32KB usable but prevents corruption.
-#define STACK_SAFETY_MARGIN 32768
-
 void m3_SetNativeStackLimit(size_t stackBase, size_t maxStackSize)
 {
     g_nativeStackBase = stackBase;
-    g_nativeStackLimit = stackBase - maxStackSize + STACK_SAFETY_MARGIN;
+    g_nativeStackLimit = stackBase - maxStackSize;
     g_stackCheckCount = 0;
     g_lowestSP = stackBase;
 }
