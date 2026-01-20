@@ -242,6 +242,14 @@ void *      m3_Realloc_Impl         (void * i_ptr, size_t i_newSize, size_t i_ol
 void        m3_Free_Impl            (void * i_ptr);
 void *      m3_CopyMem              (const void * i_from, size_t i_size);
 
+#if d_m3FixedHeap
+void        m3_InitBootstrapHeap    (void* heapBuffer, size_t heapSize);
+void        m3_ClearBootstrapHeap   (void);
+void        m3_GetBootstrapHeapState(u8** o_base, u8** o_ptr, u8** o_end, u8** o_last);
+void        m3_SetCurrentRuntime    (IM3Runtime runtime);
+IM3Runtime  m3_GetCurrentRuntime    (void);
+#endif
+
 #if d_m3LogHeapOps
 
 // Tracing format: timestamp;heap:OpCode;name;size(bytes);new items;new ptr;old items;old ptr

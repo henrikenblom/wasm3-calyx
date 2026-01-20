@@ -45,8 +45,7 @@
 # endif
 
 # ifndef d_m3FixedHeap
-#   define d_m3FixedHeap                        false
-//# define d_m3FixedHeap                        (32*1024)
+#   define d_m3FixedHeap                        1
 # endif
 
 # ifndef d_m3FixedHeapAlign

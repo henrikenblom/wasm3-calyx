@@ -200,6 +200,13 @@ typedef struct M3Runtime
 #endif
 
 	u32						newCodePageSequence;
+
+#if d_m3FixedHeap
+    u8*                     fixedHeapBase;
+    u8*                     fixedHeapPtr;
+    u8*                     fixedHeapEnd;
+    u8*                     fixedHeapLast;
+#endif
 }
 M3Runtime;
 
