@@ -162,35 +162,35 @@ static void* heap_realloc(u8** ptr, u8* end, u8** last, void* i_ptr, size_t i_ne
 
 void *  m3_Malloc_Impl  (size_t i_size)
 {
-    if (g_currentRuntime) {
-        return heap_malloc(&g_currentRuntime->fixedHeapPtr, g_currentRuntime->fixedHeapEnd,
-                          &g_currentRuntime->fixedHeapLast, i_size);
-    }
     if (g_bootstrapHeap.ptr) {
         return heap_malloc(&g_bootstrapHeap.ptr, g_bootstrapHeap.end,
                           &g_bootstrapHeap.last, i_size);
+    }
+    if (g_currentRuntime) {
+        return heap_malloc(&g_currentRuntime->fixedHeapPtr, g_currentRuntime->fixedHeapEnd,
+                          &g_currentRuntime->fixedHeapLast, i_size);
     }
     return NULL;
 }
 
 void  m3_Free_Impl  (void * i_ptr)
 {
-    if (g_currentRuntime) {
-        heap_free(&g_currentRuntime->fixedHeapPtr, &g_currentRuntime->fixedHeapLast, i_ptr);
-    } else if (g_bootstrapHeap.ptr) {
+    if (g_bootstrapHeap.ptr) {
         heap_free(&g_bootstrapHeap.ptr, &g_bootstrapHeap.last, i_ptr);
+    } else if (g_currentRuntime) {
+        heap_free(&g_currentRuntime->fixedHeapPtr, &g_currentRuntime->fixedHeapLast, i_ptr);
     }
 }
 
 void *  m3_Realloc_Impl  (void * i_ptr, size_t i_newSize, size_t i_oldSize)
 {
-    if (g_currentRuntime) {
-        return heap_realloc(&g_currentRuntime->fixedHeapPtr, g_currentRuntime->fixedHeapEnd,
-                           &g_currentRuntime->fixedHeapLast, i_ptr, i_newSize, i_oldSize);
-    }
     if (g_bootstrapHeap.ptr) {
         return heap_realloc(&g_bootstrapHeap.ptr, g_bootstrapHeap.end,
                            &g_bootstrapHeap.last, i_ptr, i_newSize, i_oldSize);
+    }
+    if (g_currentRuntime) {
+        return heap_realloc(&g_currentRuntime->fixedHeapPtr, g_currentRuntime->fixedHeapEnd,
+                           &g_currentRuntime->fixedHeapLast, i_ptr, i_newSize, i_oldSize);
     }
     return NULL;
 }
