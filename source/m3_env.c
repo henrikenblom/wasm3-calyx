@@ -220,6 +220,46 @@ IM3Runtime  m3_NewRuntimeWithStack  (IM3Environment i_environment, u32 i_stackSi
     return runtime;
 }
 
+#if d_m3FixedHeap
+IM3Runtime  m3_NewRuntimeWithHeap  (IM3Environment i_environment, u32 i_stackSizeInBytes, void * i_stack, void * i_heapBuffer, size_t i_heapSize, void * i_userdata)
+{
+    if (!i_stack || !i_heapBuffer || i_heapSize == 0) {
+        return NULL;
+    }
+
+    IM3Runtime runtime = m3_AllocStruct (M3Runtime);
+
+    if (runtime)
+    {
+        m3_GetBootstrapHeapState(
+            &runtime->fixedHeapBase,
+            &runtime->fixedHeapPtr,
+            &runtime->fixedHeapEnd,
+            &runtime->fixedHeapLast
+        );
+        m3_ClearBootstrapHeap();
+        m3_SetCurrentRuntime(runtime);
+
+        m3_ResetErrorInfo(runtime);
+
+        runtime->environment = i_environment;
+        runtime->userdata = i_userdata;
+
+        runtime->originStack = i_stack;
+        runtime->stackIsExternal = true;
+        runtime->stack = runtime->originStack;
+        runtime->numStackSlots = i_stackSizeInBytes / sizeof (m3slot_t);
+        m3log (runtime, "new runtime with external stack and heap: %p, heap: %p", runtime->originStack, i_heapBuffer);
+    }
+    else
+    {
+        m3_ClearBootstrapHeap();
+    }
+
+    return runtime;
+}
+#endif
+
 M3Result  m3_RuntimeSetMemory  (IM3Runtime io_runtime, void * i_memory, u32 i_memoryBytes)
 {
     if (!io_runtime || !i_memory || i_memoryBytes < sizeof(M3MemoryHeader)) {
@@ -299,6 +339,12 @@ void  m3_FreeRuntime  (IM3Runtime i_runtime)
     if (i_runtime)
     {
         m3_PrintProfilerInfo ();
+
+#if d_m3FixedHeap
+        if (m3_GetCurrentRuntime() == i_runtime) {
+            m3_SetCurrentRuntime(NULL);
+        }
+#endif
 
         Runtime_Release (i_runtime);
         m3_Free (i_runtime);

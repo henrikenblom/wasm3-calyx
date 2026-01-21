@@ -20,6 +20,7 @@
 #include <stdarg.h>
 
 #include "wasm3_defs.h"
+#include "m3_config.h"
 
 // Constants
 #define M3_BACKTRACE_TRUNCATED      (IM3BacktraceFrame)(SIZE_MAX)
@@ -217,6 +218,25 @@ d_m3ErrorConst  (trapStackOverflow,             "[trap] stack overflow")
                                                      uint32_t               i_stackSizeInBytes,
                                                      void *                 i_stack,
                                                      void *                 i_userdata);
+
+#if d_m3FixedHeap
+    // Create a runtime with externally-provided stack and fixed heap buffers.
+    // Both the stack and heap buffers will NOT be freed when the runtime is destroyed.
+    // The M3Runtime struct itself is allocated from the heap buffer.
+    // All subsequent wasm3 allocations will use the runtime's per-runtime heap state.
+    // Useful for embedded systems with per-process fixed memory regions.
+    IM3Runtime          m3_NewRuntimeWithHeap       (IM3Environment         io_environment,
+                                                     uint32_t               i_stackSizeInBytes,
+                                                     void *                 i_stack,
+                                                     void *                 i_heapBuffer,
+                                                     size_t                 i_heapSize,
+                                                     void *                 i_userdata);
+
+    // Set the current runtime for fixed heap allocations.
+    // When a runtime is set, all wasm3 allocations use that runtime's heap.
+    // Call with NULL to clear. Used for context switching between processes.
+    void                m3_SetCurrentRuntime        (IM3Runtime             i_runtime);
+#endif
 
     // Set external linear memory for a runtime.
     // The memory buffer will NOT be freed or reallocated when the runtime is destroyed.
