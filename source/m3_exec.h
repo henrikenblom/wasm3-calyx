@@ -114,6 +114,7 @@ d_m3RetSig  Call  (d_m3OpSig, cstr_t i_operationName)
 d_m3RetSig  Call  (d_m3OpSig)
 # endif
 {
+    _mem->runtime->activeStackPointer = _sp;
     m3ret_t possible_trap = m3_Yield ();
     if (M3_UNLIKELY(possible_trap)) return possible_trap;
 
@@ -1230,6 +1231,7 @@ d_m3Op  (ContinueLoop)
     if (M3_UNLIKELY(r))
         forwardTrap (r);
 
+    _mem->runtime->activeStackPointer = _sp;
     m3ret_t possible_trap = m3_YieldWithSignals (_mem->runtime);
     if (M3_UNLIKELY(possible_trap)) return possible_trap;
 
@@ -1249,6 +1251,7 @@ d_m3Op  (ContinueLoopIf)
         if (M3_UNLIKELY(r))
             forwardTrap (r);
 
+        _mem->runtime->activeStackPointer = _sp;
         m3ret_t possible_trap = m3_YieldWithSignals (_mem->runtime);
         if (M3_UNLIKELY(possible_trap)) return possible_trap;
 
